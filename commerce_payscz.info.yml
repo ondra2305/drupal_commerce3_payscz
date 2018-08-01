@@ -1,0 +1,8 @@
+name: Pays.cz payment gateway
+type: module
+description: 'Provides payment gateway for Drupal Commerce.'
+package: Commerce
+core: 8.x
+dependencies:
+  - commerce:commerce
+  - commerce:commerce_payment
