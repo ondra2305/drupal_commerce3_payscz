@@ -26,6 +26,7 @@ use Symfony\Component\HttpFoundation\Request;
  *   modes = {
  *     "n/a" = @Translation("N/A"),
  *   },
+ *   requires_billing_information = FALSE,
  * )
  */
 class OffsiteRedirect extends OffsitePaymentGatewayBase {
