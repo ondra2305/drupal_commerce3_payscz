@@ -1,4 +1,4 @@
-name: Pays.cz Payment Gateway
+name: Commerce Pays.cz
 type: module
 description: 'Provides payment gateway for Drupal Commerce.'
 package: Commerce
