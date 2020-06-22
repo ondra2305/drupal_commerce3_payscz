@@ -7,6 +7,7 @@ use Drupal\commerce_payment\Exception\PaymentGatewayException;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayBase;
 use Drupal\commerce_price\Price;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Site\Settings;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -64,12 +65,28 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
       '#default_value' => $this->configuration['shop_id'],
     ];
 
+    $password = Settings::get('payscz_validation_password');
+    if ($password) {
+      for ($i = 0; $i < strlen($password)-2; $i++) {
+        $password[$i] = '*';
+      }
+    } else {
+      $password = '<em>not set</em>';
+    }
     $form['validation_password'] = [
-      '#type' => 'textfield',
+      '#type' => 'item',
       '#title' => $this->t('Validation password'),
       '#required' => TRUE,
-      '#default_value' => $this->configuration['validation_password'],
-      '#description' => $this->t('Password you were given by Pays.cz for validating payments confirmations.'),
+      '#markup' => $password,
+      '#description' =>
+        $this->t('Password you were given by Pays.cz for validating payments confirmations. Should be kept private (can be used to create fake payments), so you should keep it out of version controll.')
+        . '<p>'
+        . $this->t('Put this to your settings.php when using secret environment variables:')
+        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['configuration.validation_password'] = getenv('PAYS_API_PASSWORD');</code><br>"
+        . $this->t('or put password directly if your settings.php is not versioned:')
+        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['configuration.validation_password'] = 'xxxxxxx';</code><br>"
+        . '</p>'
+      ,
     ];
 
     $form['merchant_order_number_prefix'] = [
@@ -140,28 +157,36 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
   protected function processPaysMessage(array $q) {
     // Check if all parameters are there.
     if (!(isset($q['PaymentOrderID']) && isset($q['MerchantOrderNumber']) && isset($q['PaymentOrderStatusID']) && isset($q['CurrencyID']) && isset($q['Amount']) && isset($q['CurrencyBaseUnits']) && isset($q['hash']))) {
-      throw new PaymentGatewayException('Payment failed!');
+      throw new PaymentGatewayException('Pays payment: Some required parameters missing.');
     }
 
     // Check signature.
     $hashstring = $q['PaymentOrderID'] . $q['MerchantOrderNumber'] . $q['PaymentOrderStatusID'] . $q['CurrencyID'] . $q['Amount'] . $q['CurrencyBaseUnits'];
-    $password = $this->configuration['validation_password'];
+    $password = Settings::get('payscz_validation_password') ?: $this->configuration['validation_password'];
     if (hash_hmac('md5', $hashstring, $password) !== $q['hash']) {
-      throw new PaymentGatewayException('Payment failed!');
+      throw new PaymentGatewayException('Pays payment: Signature not valid.');
     }
 
+    /** @var \Drupal\commerce_payment\PaymentStorage $payment_storage */
     $payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
+    /** @var \Drupal\commerce_order\OrderStorage $order_storage */
+    $order_storage = $this->entityTypeManager->getStorage('commerce_order');
 
     // Try to find existing payment.
     $payment = $payment_storage->loadByRemoteId($q['PaymentOrderID']);
     // Create if not found.
     if (!$payment) {
+      // Check if order exists
+      if (!$order_storage->load($q['MerchantOrderNumber'])) {
+        throw new PaymentGatewayException('Pays payment: Order (by MerchantOrderNumber) does not exists.');
+      }
       $payment = $payment_storage->create([
-        'payment_gateway' => $this->entityId,
+        'payment_gateway' => $this->parentEntity->id(),
         'order_id' => $q['MerchantOrderNumber'],
         'remote_id' => $q['PaymentOrderID'],
       ]);
     }
+    /** @var \Drupal\commerce_payment\Entity\Payment $payment */
 
     $payment->setState(($q['PaymentOrderStatusID'] == '3') ? 'completed' : 'authorization_voided');
     // Use amount from Pays, because scammer can alter it on gateway.
