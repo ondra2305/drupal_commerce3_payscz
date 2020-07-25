@@ -82,9 +82,9 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
         $this->t('Password you were given by Pays.cz for validating payments confirmations. Should be kept private (can be used to create fake payments), so you should keep it out of version controll.')
         . '<p>'
         . $this->t('Put this to your settings.php when using secret environment variables:')
-        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['configuration.validation_password'] = getenv('PAYS_API_PASSWORD');</code><br>"
+        . "<br><code>\$settings['payscz_validation_password'] = getenv('PAYS_API_PASSWORD');</code><br>"
         . $this->t('or put password directly if your settings.php is not versioned:')
-        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['configuration.validation_password'] = 'xxxxxxx';</code><br>"
+        . "<br><code>\$settings['payscz_validation_password'] = 'xxxxxxx';</code><br>"
         . '</p>'
       ,
     ];
