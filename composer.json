@@ -1,5 +1,5 @@
 {
-  "name": "commerce_payscz",
+  "name": "drupal/commerce_payscz",
   "type": "drupal-module",
   "description": "Provides payment gateway for Drupal Commerce.",
   "keywords": [],
