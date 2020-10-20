@@ -96,11 +96,11 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
     ];
 
     if ($this->configuration['merchant_order_number_prefix']) {
-    $form['merchant_order_number_prefix'] = [
+      $form['merchant_order_number_prefix'] = [
         '#type' => 'item',
-      '#title' => $this->t('Order number prefix'),
+        '#title' => $this->t('Order number prefix'),
         '#description' => $this->t('Prefix for MerchantOrderNumber has been removed from this module due to complications for multi gateways support.'),
-    ];
+      ];
     }
 
     $form['send_email'] = [
@@ -111,15 +111,6 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
     ];
 
     return $form;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    if ($form_state->getValue('id') != 'pays') {
-      $form_state->setErrorByName('id', t('Machine name must be `pays` because module does not support multiple Pays gateways yet.'));
-    }
   }
 
   /**
