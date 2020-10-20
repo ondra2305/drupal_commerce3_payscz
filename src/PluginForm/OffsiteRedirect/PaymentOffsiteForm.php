@@ -30,7 +30,7 @@ class PaymentOffsiteForm extends BasePaymentOffsiteForm {
       'Shop' => $configuration['shop_id'],
       'Currency' => $payment->getAmount()->getCurrencyCode(),
       'Amount' => (int) $payment->getAmount()->getNumber() * 100,
-      'MerchantOrderNumber' => $configuration['merchant_order_number_prefix'] . $payment->getOrderId(),
+      'MerchantOrderNumber' => $payment->getOrderId(),
       'Email' => $configuration['send_email'] ? $payment->getOrder()->getEmail() : '',
     ];
 

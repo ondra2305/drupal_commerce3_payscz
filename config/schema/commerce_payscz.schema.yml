@@ -7,9 +7,9 @@ commerce_payment.commerce_payment_gateway.plugin.commerce_payscz:
     shop_id:
       type: integer
       label: 'Shop ID'
-    merchant_order_number_prefix:
+    validation_password:
       type: string
-      label: 'Order number prefix'
+      label: 'Validation password'
     send_email:
       type: boolean
       label: "Send customer's email to the gateway"

@@ -39,10 +39,24 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
     return [
       'merchant_id' => '',
       'shop_id' => '',
-      'merchant_order_number_prefix' => '',
-      'send_email' => TRUE,
       'validation_password' => '',
+      'send_email' => TRUE
     ] + parent::defaultConfiguration();
+  }
+
+  /**
+   * Get validation password for this gateway.
+   *
+   * Including older storages.
+   */
+  public function getValidationPassword() {
+    $passwords = Settings::get('payscz_validation_password');
+    if ($passwords) {
+      return $passwords;
+    }
+    elseif (isset($this->configuration['validation_password'])) {
+      return $this->configuration['validation_password'];
+    }
   }
 
   /**
@@ -65,36 +79,29 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
       '#default_value' => $this->configuration['shop_id'],
     ];
 
-    $password = Settings::get('payscz_validation_password');
-    if ($password) {
-      for ($i = 0; $i < strlen($password)-2; $i++) {
-        $password[$i] = '*';
-      }
-    } else {
-      $password = '<em>not set</em>';
-    }
     $form['validation_password'] = [
       '#type' => 'item',
       '#title' => $this->t('Validation password'),
-      '#required' => TRUE,
-      '#markup' => $password,
       '#description' =>
         $this->t('Password you were given by Pays.cz for validating payments confirmations. Should be kept private (can be used to create fake payments), so you should keep it out of version controll.')
         . '<p>'
         . $this->t('Put this to your settings.php when using secret environment variables:')
-        . "<br><code>\$settings['payscz_validation_password'] = getenv('PAYS_API_PASSWORD');</code><br>"
+        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['validation_password'] = getenv('PAYS_API_PASSWORD');</code><br>"
         . $this->t('or put password directly if your settings.php is not versioned:')
-        . "<br><code>\$settings['payscz_validation_password'] = 'xxxxxxx';</code><br>"
+        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['validation_password'] = 'xxxxxxx';</code><br>"
+        . '</p><p>'
+        . $this->t('If machine name of this gateways is other than `pays` do not forgot to change it there.')
         . '</p>'
       ,
     ];
 
+    if ($this->configuration['merchant_order_number_prefix']) {
     $form['merchant_order_number_prefix'] = [
-      '#type' => 'textfield',
+        '#type' => 'item',
       '#title' => $this->t('Order number prefix'),
-      '#default_value' => $this->configuration['merchant_order_number_prefix'],
-      '#description' => $this->t('Prefix for MerchantOrderNumber field what will be send to Pays.cz. If you change it you can brake authorization for payments currently in progress.'),
+        '#description' => $this->t('Prefix for MerchantOrderNumber has been removed from this module due to complications for multi gateways support.'),
     ];
+    }
 
     $form['send_email'] = [
       '#type' => 'checkbox',
@@ -124,7 +131,6 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
       $values = $form_state->getValue($form['#parents']);
       $this->configuration['merchant_id'] = $values['merchant_id'];
       $this->configuration['shop_id'] = $values['shop_id'];
-      $this->configuration['merchant_order_number_prefix'] = $values['merchant_order_number_prefix'];
       $this->configuration['send_email'] = $values['send_email'];
       $this->configuration['validation_password'] = $values['validation_password'];
     }
@@ -162,8 +168,9 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
 
     // Check signature.
     $hashstring = $q['PaymentOrderID'] . $q['MerchantOrderNumber'] . $q['PaymentOrderStatusID'] . $q['CurrencyID'] . $q['Amount'] . $q['CurrencyBaseUnits'];
-    $password = Settings::get('payscz_validation_password') ?: $this->configuration['validation_password'];
-    if (hash_hmac('md5', $hashstring, $password) !== $q['hash']) {
+    $password = $this->getValidationPassword();
+    $calculated_hash = hash_hmac('md5', $hashstring, $password);
+    if ($calculated_hash !== $q['hash']) {
       throw new PaymentGatewayException('Pays payment: Signature not valid.');
     }
 
