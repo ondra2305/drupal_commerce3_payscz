@@ -95,7 +95,7 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
       ,
     ];
 
-    if ($this->configuration['merchant_order_number_prefix']) {
+    if (isset($this->configuration['merchant_order_number_prefix'])) {
       $form['merchant_order_number_prefix'] = [
         '#type' => 'item',
         '#title' => $this->t('Order number prefix'),
