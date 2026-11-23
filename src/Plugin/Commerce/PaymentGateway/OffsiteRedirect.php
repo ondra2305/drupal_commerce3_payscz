@@ -86,9 +86,9 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
         $this->t('Password you were given by Pays.cz for validating payments confirmations. Should be kept private (can be used to create fake payments), so you should keep it out of version controll.')
         . '<p>'
         . $this->t('Put this to your settings.php when using secret environment variables:')
-        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['validation_password'] = getenv('PAYS_API_PASSWORD');</code><br>"
+        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['configuration']['validation_password'] = getenv('PAYS_API_PASSWORD');</code><br>"
         . $this->t('or put password directly if your settings.php is not versioned:')
-        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['validation_password'] = 'xxxxxxx';</code><br>"
+        . "<br><code>\$config['commerce_payment.commerce_payment_gateway.pays']['configuration']['validation_password'] = 'xxxxxxx';</code><br>"
         . '</p><p>'
         . $this->t('If machine name of this gateways is other than `pays` do not forgot to change it there.')
         . '</p>'
@@ -123,7 +123,6 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
       $this->configuration['merchant_id'] = $values['merchant_id'];
       $this->configuration['shop_id'] = $values['shop_id'];
       $this->configuration['send_email'] = $values['send_email'];
-      $this->configuration['validation_password'] = $values['validation_password'];
     }
   }
 
@@ -134,11 +133,16 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
     $q = $request->query->all();
 
     // Check if some scammer is not trying to pay for another order.
-    if (!isset($q['MerchantOrderNumber']) && $q['MerchantOrderNumber'] != $order->id()) {
+    if (!isset($q['MerchantOrderNumber']) || $q['MerchantOrderNumber'] != $order->id()) {
       throw new PaymentGatewayException('Payment failed!');
     }
 
-    $this->processPaysMessage($q);
+    $payment = $this->processPaysMessage($q);
+
+    $total = $order->getTotalPrice();
+    if ($payment->getState()->getId() !== 'completed' || $total->getCurrencyCode() !== $q['CurrencyID'] || !$total->equals($payment->getAmount())) {
+      throw new PaymentGatewayException('Payment failed!');
+    }
   }
 
   /**
@@ -160,8 +164,11 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
     // Check signature.
     $hashstring = $q['PaymentOrderID'] . $q['MerchantOrderNumber'] . $q['PaymentOrderStatusID'] . $q['CurrencyID'] . $q['Amount'] . $q['CurrencyBaseUnits'];
     $password = $this->getValidationPassword();
+    if (!$password) {
+      throw new PaymentGatewayException('Pays payment: Validation password not configured.');
+    }
     $calculated_hash = hash_hmac('md5', $hashstring, $password);
-    if ($calculated_hash !== $q['hash']) {
+    if (!hash_equals($calculated_hash, $q['hash'])) {
       throw new PaymentGatewayException('Pays payment: Signature not valid.');
     }
 
@@ -172,6 +179,12 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
 
     // Try to find existing payment.
     $payment = $payment_storage->loadByRemoteId($q['PaymentOrderID']);
+    if ($payment && $payment->getOrderId() != $q['MerchantOrderNumber']) {
+      throw new PaymentGatewayException('Pays payment: Payment belongs to another order.');
+    }
+    if ($payment && $payment->getState()->getId() === 'completed') {
+      return $payment;
+    }
     // Create if not found.
     if (!$payment) {
       // Check if order exists
@@ -193,6 +206,8 @@ class OffsiteRedirect extends OffsitePaymentGatewayBase {
     $payment->setRemoteState($q['PaymentOrderStatusID']);
 
     $payment->save();
+
+    return $payment;
   }
 
 }
